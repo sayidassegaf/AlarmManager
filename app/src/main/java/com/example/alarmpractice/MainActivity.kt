@@ -1,5 +1,6 @@
 package com.example.alarmpractice
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,11 +10,13 @@ import android.graphics.Color
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.os.SystemClock
 import android.widget.CompoundButton
 import android.widget.Toast
 import android.widget.ToggleButton
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,30 +25,64 @@ class MainActivity : AppCompatActivity() {
     val NOTIFICATION_ID = 0
     val PRIMARY_CHANNEL_ID = "primary_notification_channel"
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val notificationManager =
+        val NotificationManager =
             ContextCompat.getSystemService(
                 this,
                 NotificationManager::class.java
             ) as NotificationManager
 
-
         alarmToogle = findViewById(R.id.alarmToggle)
 
-        alarmToogle.setOnCheckedChangeListener { compoundButton, isChecked ->
-            var toastMessage = ""
-            if(isChecked){
-                deliverNotification(this)
-                toastMessage = getString(R.string.alarm_on_toast)
-            }else{
-                toastMessage = getString(R.string.alarm_off_toast)
-            }
-            Toast.makeText(this, toastMessage, Toast.LENGTH_SHORT).show()
-        }
+        val notifyIntent = Intent(this, AlarmReceiver::class.java)
 
+        val alarmUp = PendingIntent.getBroadcast(
+            this, NOTIFICATION_ID, notifyIntent,
+            PendingIntent.FLAG_NO_CREATE
+        ) != null
+        alarmToggle.setChecked(alarmUp);
+
+        val notifyPendingIntent = PendingIntent.getBroadcast(
+            this,
+            NOTIFICATION_ID,
+            notifyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+
+
+
+        alarmToogle.setOnCheckedChangeListener { compoundButton, isChecked ->
+
+            if (isChecked) {
+                var toastMessage = ""
+                val repeatInterval = AlarmManager.INTERVAL_FIFTEEN_MINUTES
+                val triggerTime = (SystemClock.elapsedRealtime()
+                        + repeatInterval)
+                //If the Toggle is turned on, set the repeating alarm with a 15 minute interval
+                if (alarmManager != null) {
+                    alarmManager.setInexactRepeating(
+                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                        triggerTime, repeatInterval, notifyPendingIntent
+                    )
+                    toastMessage = getString(R.string.alarm_on_toast)
+                } else {
+                    NotificationManager.cancelAll();
+                    if (alarmManager != null) {
+                        alarmManager.cancel(notifyPendingIntent);
+                    }
+                    toastMessage = getString(R.string.alarm_off_toast)
+                }
+                Toast.makeText(this, toastMessage, Toast.LENGTH_SHORT).show()
+
+            }
+
+        }
         //ToogleButton
     }
 
@@ -75,7 +112,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun deliverNotification(context: Context) {
         val contentIntent = Intent(context, MainActivity::class.java)
-        val pendingIntent = PendingIntent.getActivity(context,NOTIFICATION_ID, contentIntent, PendingIntent.FLAG_UPDATE_CURRENT)
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID,
+            contentIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
 
         val builder = NotificationCompat.Builder(context, PRIMARY_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stand_up)
